@@ -1,0 +1,863 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Super Mario: Petualangan Bebas Anemia</title>
+    <!-- Tailwind CSS untuk Layout & UI -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+        * {
+            touch-action: manipulation;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Press Start 2P', cursive, sans-serif;
+            background-color: #0f172a;
+            touch-action: none;
+            overflow: hidden;
+            margin: 0;
+            padding: 0;
+        }
+
+        canvas {
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
+
+        .retro-shadow {
+            box-shadow: 0 8px 0 #000;
+        }
+
+        .touch-btn {
+            background: rgba(255, 255, 255, 0.25);
+            backdrop-filter: blur(4px);
+            border: 2px solid rgba(255, 255, 255, 0.5);
+            transition: background 0.05s, transform 0.05s;
+        }
+
+        .touch-btn:active, .touch-btn.active {
+            background: rgba(234, 179, 8, 0.7);
+            transform: scale(0.92);
+        }
+
+        /* Modal custom styling */
+        .quiz-option {
+            transition: all 0.2s ease;
+        }
+        .quiz-option:hover {
+            transform: translateX(4px);
+        }
+    </style>
+</head>
+<body class="h-screen w-screen flex flex-col justify-between items-center overflow-hidden text-white p-1 sm:p-3 select-none">
+
+    <!-- Header Stats / HUD -->
+    <div class="w-full max-w-4xl flex justify-between items-center bg-slate-900/90 border-2 sm:border-4 border-yellow-500 rounded-xl p-2 sm:p-3 mb-1 shadow-2xl z-10 text-[9px] sm:text-xs md:text-sm">
+        <!-- Health & Status Hemoglobin -->
+        <div class="flex flex-col gap-1 w-2/5">
+            <div class="flex justify-between items-center">
+                <span class="text-red-400 font-bold truncate">HB (DARAH)</span>
+                <span id="hb-val" class="text-xs text-yellow-300">12.0 g/dL</span>
+            </div>
+            <div class="w-full bg-slate-800 h-3 sm:h-4 rounded-full overflow-hidden border border-slate-600">
+                <div id="player-hp" class="bg-red-500 h-full w-full transition-all duration-300"></div>
+            </div>
+        </div>
+
+        <!-- Score & TTD Count -->
+        <div class="text-center px-1 flex flex-col items-center">
+            <div class="text-yellow-400 text-[8px] sm:text-xs">SKOR</div>
+            <div id="score-val" class="text-white font-bold text-xs sm:text-base">00000</div>
+        </div>
+
+        <div class="flex items-center gap-2 text-right">
+            <div class="flex flex-col items-end">
+                <span class="text-emerald-400 font-bold text-[8px] sm:text-xs">TTD TERKUMPUL</span>
+                <span id="ttd-count" class="text-xs sm:text-sm font-bold text-emerald-300">0 / 5</span>
+            </div>
+            <div class="w-6 h-6 sm:w-8 sm:h-8 bg-red-600 rounded-full border-2 border-white flex items-center justify-center font-bold text-[10px] sm:text-xs">
+                💊
+            </div>
+        </div>
+    </div>
+
+    <!-- Container Game Canvas & Overlays -->
+    <div class="relative flex-1 w-full max-w-4xl flex items-center justify-center min-h-0">
+        <canvas id="gameCanvas" class="w-full h-full object-contain rounded-lg border-2 sm:border-4 border-slate-700 bg-sky-400"></canvas>
+
+        <!-- Overlay Menu Utama / Game Over / Victory -->
+        <div id="ui-overlay" class="absolute inset-0 bg-slate-950/90 rounded-lg flex flex-col justify-center items-center p-4 text-center z-20">
+            <h1 id="ui-title" class="text-sm sm:text-2xl md:text-3xl font-bold text-yellow-400 mb-2 leading-snug animate-pulse">
+                SUPER MARIO:<br><span class="text-red-500">PETUALANGAN BEBAS ANEMIA</span>
+            </h1>
+            <p id="ui-desc" class="text-[9px] sm:text-xs text-slate-300 mb-4 sm:mb-6 max-w-md leading-relaxed">
+                Bantu Mario mengumpulkan **Tablet Tambah Darah (TTD)** dan gizi zat besi untuk mencegah Anemia! Hindari ancaman Mitos Gizi & Penyakit!
+            </p>
+            <button id="start-btn" class="bg-yellow-500 hover:bg-yellow-400 active:scale-95 text-slate-950 font-extrabold py-3 px-6 rounded-xl border-b-4 border-yellow-700 active:border-b-0 transition-all cursor-pointer text-xs sm:text-base">
+                MULAI PETUALANGAN
+            </button>
+            <div class="mt-4 text-[8px] sm:text-[10px] text-slate-400">
+                <p class="hidden md:block">PC: [A/D / Panah] Bergerak | [Spasi / W] Melompat | [Shift] Lari</p>
+                <p class="md:hidden">Gunakan Tombol Sentuh di Bawah untuk Bermain</p>
+            </div>
+        </div>
+
+        <!-- Overlay Kuis Edukasi Interaktif -->
+        <div id="quiz-overlay" class="hidden absolute inset-0 bg-slate-900/95 rounded-lg flex flex-col justify-between p-4 sm:p-6 z-30 border-4 border-yellow-500">
+            <div>
+                <div class="flex justify-between items-center border-b border-slate-700 pb-2 mb-3">
+                    <span class="text-yellow-400 text-[10px] sm:text-xs">KUIS EDUKASI GIZI & ANEMIA</span>
+                    <span id="quiz-step" class="text-emerald-400 text-[10px] sm:text-xs">Soal 1/5</span>
+                </div>
+                <h3 id="quiz-question" class="text-xs sm:text-base text-white font-bold leading-relaxed mb-4">
+                    Pertanyaan kuis akan muncul di sini?
+                </h3>
+                <div id="quiz-options" class="flex flex-col gap-2">
+                    <!-- Tombol pilihan jawaban diisi via JS -->
+                </div>
+            </div>
+            <div id="quiz-feedback" class="text-xs text-center py-2 min-h-[2rem] font-bold"></div>
+        </div>
+    </div>
+
+    <!-- Controls Sentuh (Mobile/Tablet) -->
+    <div id="touch-controls" class="w-full max-w-4xl flex justify-between items-center px-2 py-1 mt-1 z-10 touch-none">
+        <!-- D-Pad Kiri / Kanan -->
+        <div class="flex gap-2">
+            <button id="btn-left" class="touch-btn w-14 h-14 sm:w-16 sm:h-16 rounded-2xl flex items-center justify-center text-xl text-white font-bold">◄</button>
+            <button id="btn-right" class="touch-btn w-14 h-14 sm:w-16 sm:h-16 rounded-2xl flex items-center justify-center text-xl text-white font-bold">►</button>
+        </div>
+
+        <!-- Tombol Aksi Kanan -->
+        <div class="flex items-center gap-3">
+            <button id="btn-dash" class="touch-btn w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-blue-600/50 border-2 border-blue-400 flex items-center justify-center text-[10px] text-white font-bold">
+                DASH
+            </button>
+            <button id="btn-jump" class="touch-btn w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-yellow-500/80 active:bg-yellow-400 border-4 border-yellow-300 flex flex-col items-center justify-center text-xs text-slate-950 font-black shadow-lg">
+                <span>JUMP</span>
+                <span class="text-[8px] text-slate-800">▲</span>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Setup Canvas & Internal Game Resolution
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        const GAME_WIDTH = 480;
+        const GAME_HEIGHT = 270;
+        canvas.width = GAME_WIDTH;
+        canvas.height = GAME_HEIGHT;
+
+        // Audio Synthesizer (Web Audio API)
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        let audioCtx = null;
+
+        function initAudio() {
+            if (!audioCtx) audioCtx = new AudioCtx();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+        }
+
+        function playSound(type) {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            const now = audioCtx.currentTime;
+
+            if (type === 'jump') {
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(150, now);
+                osc.frequency.exponentialRampToValueAtTime(400, now + 0.12);
+                gain.gain.setValueAtTime(0.15, now);
+                gain.gain.linearRampToValueAtTime(0.01, now + 0.12);
+                osc.start(now);
+                osc.stop(now + 0.12);
+            } else if (type === 'coin' || type === 'item') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(523, now); // C5
+                osc.frequency.setValueAtTime(659, now + 0.08); // E5
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.linearRampToValueAtTime(0.01, now + 0.25);
+                osc.start(now);
+                osc.stop(now + 0.25);
+            } else if (type === 'quiz') {
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(300, now);
+                osc.frequency.linearRampToValueAtTime(600, now + 0.2);
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.linearRampToValueAtTime(0.01, now + 0.2);
+                osc.start(now);
+                osc.stop(now + 0.2);
+            } else if (type === 'hit') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(180, now);
+                osc.frequency.linearRampToValueAtTime(60, now + 0.15);
+                gain.gain.setValueAtTime(0.25, now);
+                gain.gain.linearRampToValueAtTime(0.01, now + 0.15);
+                osc.start(now);
+                osc.stop(now + 0.15);
+            }
+        }
+
+        // Data Bank Kuis Edukasi berdasarkan Penelitian (SMAN 1 Sungai Kakap / Rozak dkk., 2025)
+        const quizBank = [
+            {
+                q: "Apa penyebab utama penyakit Anemia pada remaja?",
+                options: [
+                    "Kekurangan asupan Zat Besi (Fe) & Vitamin C",
+                    "Terlalu sering berolahraga lari",
+                    "Kurang minum air putih dingin",
+                    "Banyak mengonsumsi sayuran hijau"
+                ],
+                answer: 0,
+                explain: "Anemia paling sering disebabkan oleh Kurang Zat Besi (AKZB), zat penting untuk pembentukan Hemoglobin!"
+            },
+            {
+                q: "Berapa dosis konsumsi Tablet Tambah Darah (TTD) yang dianjurkan untuk remaja putri?",
+                options: [
+                    "1 tablet setiap hari sepanjang tahun",
+                    "1 tablet seminggu sekali secara teratur",
+                    "2 tablet sehari saat pusing saja",
+                    "Hanya diminum saat ujian sekolah"
+                ],
+                answer: 1,
+                explain: "Aturan standar pencegahan Anemia remaja putri adalah 1 tablet seminggu sekali!"
+            },
+            {
+                q: "Minuman apa yang dilarang dikonsumsi bersamaan dengan Tablet Tambah Darah (TTD)?",
+                options: [
+                    "Jus Jeruk manis",
+                    "Air Putih hangat",
+                    "Teh pekat atau Kopi (Mengandung Tanin)",
+                    "Air mineral dingin"
+                ],
+                answer: 2,
+                explain: "Teh dan kopi mengandung Tanin/Fitat yang menghambat penyerapan zat besi oleh tubuh!"
+            },
+            {
+                q: "Berapa kadar Hemoglobin (Hb) normal minimum untuk remaja putri?",
+                options: [
+                    "12,0 g/dL",
+                    "8,0 g/dL",
+                    "16,0 g/dL",
+                    "5,0 g/dL"
+                ],
+                answer: 0,
+                explain: "Kadar Hb normal remaja putri adalah ≥ 12,0 g/dL. Kurang dari itu dikategorikan Anemia."
+            },
+            {
+                q: "Makanan manakah yang kaya akan Zat Besi Heme (mudah diserap tubuh)?",
+                options: [
+                    "Hati ayam, daging merah, dan ikan",
+                    "Keripik singkong dan gorengan",
+                    "Roti tawar dan mi instan",
+                    "Permen dan es krim"
+                ],
+                answer: 0,
+                explain: "Zat besi heme dari protein hewani (hati, daging, ikan) sangat mudah diserap tubuh untuk tingkatkan Hb!"
+            }
+        ];
+
+        // Elemen DOM UI
+        const playerHpEl = document.getElementById('player-hp');
+        const hbValEl = document.getElementById('hb-val');
+        const scoreEl = document.getElementById('score-val');
+        const ttdCountEl = document.getElementById('ttd-count');
+        const uiOverlay = document.getElementById('ui-overlay');
+        const uiTitle = document.getElementById('ui-title');
+        const uiDesc = document.getElementById('ui-desc');
+        const startBtn = document.getElementById('start-btn');
+
+        const quizOverlay = document.getElementById('quiz-overlay');
+        const quizStepEl = document.getElementById('quiz-step');
+        const quizQuestionEl = document.getElementById('quiz-question');
+        const quizOptionsEl = document.getElementById('quiz-options');
+        const quizFeedbackEl = document.getElementById('quiz-feedback');
+
+        // State Utama Game
+        let gameState = 'START'; // 'START', 'PLAYING', 'QUIZ', 'GAMEOVER', 'VICTORY'
+        let score = 0;
+        let ttdCollected = 0;
+        const TOTAL_TTD_GOAL = 5;
+        let currentQuizIndex = 0;
+
+        // Input Keyboard State
+        const keys = { Left: false, Right: false, Jump: false, Dash: false };
+
+        // Player (Mario / Hero)
+        const player = {
+            x: 40,
+            y: 180,
+            width: 16,
+            height: 22,
+            vx: 0,
+            vy: 0,
+            speed: 2.2,
+            jumpForce: 7.2,
+            gravity: 0.38,
+            isGrounded: false,
+            hp: 100, // Merepresentasikan kecukupan Hemoglobin
+            isHit: 0,
+            facingRight: true,
+            animTimer: 0
+        };
+
+        // Kamera Dunia Game
+        let cameraX = 0;
+        const LEVEL_WIDTH = 1800;
+
+        // Entitas Dunia Game
+        let platforms = [];
+        let quizBlocks = [];
+        let items = []; // TTD, Daging, Teh (Debuff)
+        let enemies = []; // Mitos Anemia / Bakteri
+        let particles = [];
+
+        // Inisialisasi Level Bergaya Super Mario
+        function initLevel() {
+            platforms = [
+                // Tanah Utama
+                { x: 0, y: 230, w: 600, h: 40 },
+                { x: 650, y: 230, w: 500, h: 40 },
+                { x: 1200, y: 230, w: 600, h: 40 },
+
+                // Platform Melayang
+                { x: 120, y: 170, w: 80, h: 16 },
+                { x: 260, y: 140, w: 90, h: 16 },
+                { x: 420, y: 170, w: 80, h: 16 },
+                { x: 720, y: 160, w: 100, h: 16 },
+                { x: 920, y: 130, w: 80, h: 16 },
+                { x: 1100, y: 170, w: 80, h: 16 },
+                { x: 1350, y: 150, w: 120, h: 16 },
+                { x: 1550, y: 120, w: 100, h: 16 }
+            ];
+
+            // Blok Kuis (Pertanyaan Edukasi)
+            quizBlocks = [
+                { x: 160, y: 120, w: 16, h: 16, hit: false, quizIdx: 0 },
+                { x: 300, y: 90, w: 16, h: 16, hit: false, quizIdx: 1 },
+                { x: 760, y: 110, w: 16, h: 16, hit: false, quizIdx: 2 },
+                { x: 950, y: 80, w: 16, h: 16, hit: false, quizIdx: 3 },
+                { x: 1400, y: 100, w: 16, h: 16, hit: false, quizIdx: 4 }
+            ];
+
+            // Item Nutrisi & Debuff
+            items = [
+                // TTD (Tablet Tambah Darah) - Target Utama
+                { x: 180, y: 200, type: 'TTD', collected: false },
+                { x: 320, y: 110, type: 'TTD', collected: false },
+                { x: 780, y: 130, type: 'TTD', collected: false },
+                { x: 980, y: 100, type: 'TTD', collected: false },
+                { x: 1420, y: 70, type: 'TTD', collected: false },
+
+                // Makanan Sehat (Bonus HB)
+                { x: 280, y: 205, type: 'MEAT', collected: false },
+                { x: 450, y: 145, type: 'MEAT', collected: false },
+                { x: 880, y: 205, type: 'MEAT', collected: false },
+                { x: 1250, y: 205, type: 'MEAT', collected: false },
+
+                // Penghambat Penyerapan (Teh Pekat - Debuff)
+                { x: 380, y: 205, type: 'TEA', collected: false },
+                { x: 820, y: 205, type: 'TEA', collected: false },
+                { x: 1300, y: 205, type: 'TEA', collected: false }
+            ];
+
+            // Musuh (Mitos & Gejala Anemia: Pusing, Lemah, Muka Pucat)
+            enemies = [
+                { x: 350, y: 214, w: 16, h: 16, vx: -0.8, minX: 250, maxX: 450, label: 'LESU' },
+                { x: 750, y: 214, w: 16, h: 16, vx: 1.0, minX: 680, maxX: 900, label: 'MITOS' },
+                { x: 1000, y: 114, w: 16, h: 16, vx: -0.9, minX: 920, maxX: 1050, label: 'PUCAT' },
+                { x: 1380, y: 214, w: 16, h: 16, vx: 1.2, minX: 1250, maxX: 1500, label: 'PUSING' }
+            ];
+        }
+
+        // Listener Keyboard
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'KeyA' || e.code === 'ArrowLeft') keys.Left = true;
+            if (e.code === 'KeyD' || e.code === 'ArrowRight') keys.Right = true;
+            if (e.code === 'Space' || e.code === 'KeyW' || e.code === 'ArrowUp') {
+                if (!keys.Jump && player.isGrounded && gameState === 'PLAYING') {
+                    player.vy = -player.jumpForce;
+                    player.isGrounded = false;
+                    playSound('jump');
+                }
+                keys.Jump = true;
+            }
+            if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') keys.Dash = true;
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if (e.code === 'KeyA' || e.code === 'ArrowLeft') keys.Left = false;
+            if (e.code === 'KeyD' || e.code === 'ArrowRight') keys.Right = false;
+            if (e.code === 'Space' || e.code === 'KeyW' || e.code === 'ArrowUp') keys.Jump = false;
+            if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') keys.Dash = false;
+        });
+
+        // Touch Control Binding untuk Mobile
+        function bindTouchBtn(id, keyName) {
+            const btn = document.getElementById(id);
+            if (!btn) return;
+
+            const handleStart = (e) => {
+                e.preventDefault();
+                initAudio();
+                if (keyName === 'Jump') {
+                    if (player.isGrounded && gameState === 'PLAYING') {
+                        player.vy = -player.jumpForce;
+                        player.isGrounded = false;
+                        playSound('jump');
+                    }
+                }
+                keys[keyName] = true;
+                btn.classList.add('active');
+            };
+
+            const handleEnd = (e) => {
+                e.preventDefault();
+                keys[keyName] = false;
+                btn.classList.remove('active');
+            };
+
+            btn.addEventListener('touchstart', handleStart, { passive: false });
+            btn.addEventListener('touchend', handleEnd, { passive: false });
+            btn.addEventListener('touchcancel', handleEnd, { passive: false });
+            btn.addEventListener('mousedown', handleStart);
+            btn.addEventListener('mouseup', handleEnd);
+        }
+
+        bindTouchBtn('btn-left', 'Left');
+        bindTouchBtn('btn-right', 'Right');
+        bindTouchBtn('btn-jump', 'Jump');
+        bindTouchBtn('btn-dash', 'Dash');
+
+        startBtn.addEventListener('click', () => {
+            initAudio();
+            resetGame();
+        });
+
+        function resetGame() {
+            player.x = 40;
+            player.y = 180;
+            player.vx = 0;
+            player.vy = 0;
+            player.hp = 100;
+            player.isHit = 0;
+
+            score = 0;
+            ttdCollected = 0;
+            cameraX = 0;
+
+            initLevel();
+            updateHUD();
+
+            gameState = 'PLAYING';
+            uiOverlay.classList.add('hidden');
+            quizOverlay.classList.add('hidden');
+        }
+
+        function updateHUD() {
+            playerHpEl.style.width = Math.max(0, player.hp) + '%';
+            
+            // Konversi HP ke nilai estimasi Hb
+            const hbVal = (7.0 + (player.hp / 100) * 6.0).toFixed(1);
+            hbValEl.textContent = `${hbVal} g/dL`;
+            
+            if (player.hp < 40) {
+                playerHpEl.className = "bg-red-600 h-full w-full transition-all duration-300 animate-pulse";
+            } else {
+                playerHpEl.className = "bg-emerald-500 h-full w-full transition-all duration-300";
+            }
+
+            scoreEl.textContent = score.toString().padStart(5, '0');
+            ttdCountEl.textContent = `${ttdCollected} / ${TOTAL_TTD_GOAL}`;
+        }
+
+        // Tampilkan Modal Kuis
+        function triggerQuiz(index) {
+            gameState = 'QUIZ';
+            currentQuizIndex = index;
+            const qData = quizBank[index];
+
+            quizStepEl.textContent = `SOAL ${index + 1} / ${quizBank.length}`;
+            quizQuestionEl.textContent = qData.q;
+            quizFeedbackEl.textContent = "";
+            quizOptionsEl.innerHTML = "";
+
+            qData.options.forEach((opt, idx) => {
+                const btn = document.createElement('button');
+                btn.className = "quiz-option w-full text-left bg-slate-800 hover:bg-yellow-600 active:bg-yellow-500 text-white border border-slate-600 p-2 sm:p-3 rounded-lg text-[10px] sm:text-xs leading-snug";
+                btn.textContent = `${String.fromCharCode(65 + idx)}. ${opt}`;
+                btn.onclick = () => answerQuiz(idx);
+                quizOptionsEl.appendChild(btn);
+            });
+
+            playSound('quiz');
+            quizOverlay.classList.remove('hidden');
+        }
+
+        function answerQuiz(selectedIdx) {
+            const qData = quizBank[currentQuizIndex];
+            const buttons = quizOptionsEl.querySelectorAll('button');
+
+            buttons.forEach(b => b.disabled = true);
+
+            if (selectedIdx === qData.answer) {
+                buttons[selectedIdx].className = "w-full text-left bg-emerald-600 text-white border border-emerald-400 p-2 sm:p-3 rounded-lg text-[10px] sm:text-xs font-bold";
+                quizFeedbackEl.className = "text-xs text-center py-2 text-emerald-400 font-bold";
+                quizFeedbackEl.textContent = `BENAR! +200 Skor & HB Meningkat! ${qData.explain}`;
+                
+                score += 200;
+                player.hp = Math.min(100, player.hp + 20);
+                playSound('item');
+            } else {
+                buttons[selectedIdx].className = "w-full text-left bg-red-600 text-white border border-red-400 p-2 sm:p-3 rounded-lg text-[10px] sm:text-xs font-bold";
+                buttons[qData.answer].className = "w-full text-left bg-emerald-600 text-white border border-emerald-400 p-2 sm:p-3 rounded-lg text-[10px] sm:text-xs font-bold";
+                
+                quizFeedbackEl.className = "text-xs text-center py-2 text-red-400 font-bold";
+                quizFeedbackEl.textContent = `KURANG TEPAT! ${qData.explain}`;
+                playSound('hit');
+            }
+
+            updateHUD();
+
+            setTimeout(() => {
+                quizOverlay.classList.add('hidden');
+                gameState = 'PLAYING';
+            }, 3200);
+        }
+
+        // Particle System
+        function addParticles(x, y, color, count = 6) {
+            for (let i = 0; i < count; i++) {
+                particles.push({
+                    x, y,
+                    vx: (Math.random() - 0.5) * 3,
+                    vy: (Math.random() - 0.5) * 3,
+                    size: Math.random() * 3 + 2,
+                    color,
+                    life: 1.0
+                });
+            }
+        }
+
+        // Game Loop Update
+        function update() {
+            if (gameState !== 'PLAYING') return;
+
+            // Pergerakan Horizontal Mario
+            let moveSpeed = player.speed * (keys.Dash ? 1.6 : 1.0);
+            if (keys.Left) {
+                player.vx = -moveSpeed;
+                player.facingRight = false;
+            } else if (keys.Right) {
+                player.vx = moveSpeed;
+                player.facingRight = true;
+            } else {
+                player.vx *= 0.7; // Fiksi/Geser
+            }
+
+            // Gravitasi
+            player.vy += player.gravity;
+
+            // Prediksi Posisi Baru
+            let nextX = player.x + player.vx;
+            let nextY = player.y + player.vy;
+
+            player.isGrounded = false;
+
+            // Tabrakan Platform
+            platforms.forEach(p => {
+                if (player.x + player.width > p.x && player.x < p.x + p.w) {
+                    // Jatuh ke atas platform
+                    if (player.y + player.height <= p.y && nextY + player.height >= p.y) {
+                        nextY = p.y - player.height;
+                        player.vy = 0;
+                        player.isGrounded = true;
+                    }
+                }
+            });
+
+            // Tabrakan Blok Kuis (Tandai jika disundul dari bawah)
+            quizBlocks.forEach(b => {
+                if (player.x + player.width > b.x && player.x < b.x + b.w) {
+                    // Sundul dari bawah
+                    if (player.y >= b.y + b.h && nextY <= b.y + b.h) {
+                        nextY = b.y + b.h;
+                        player.vy = 0.5;
+                        if (!b.hit) {
+                            b.hit = true;
+                            addParticles(b.x + 8, b.y, '#eab308', 8);
+                            triggerQuiz(b.quizIdx);
+                        }
+                    }
+                }
+            });
+
+            player.x = nextX;
+            player.y = nextY;
+
+            // Batas Dunia
+            player.x = Math.max(0, Math.min(LEVEL_WIDTH - player.width, player.x));
+
+            // Kamera Mengikuti Mario
+            cameraX = player.x - GAME_WIDTH / 3;
+            cameraX = Math.max(0, Math.min(LEVEL_WIDTH - GAME_WIDTH, cameraX));
+
+            // Jatuh ke jurang
+            if (player.y > GAME_HEIGHT) {
+                player.hp = 0;
+                updateHUD();
+                gameOver("Mario jatuh! Jaga kesadaran dan stamina dari Anemia!");
+                return;
+            }
+
+            if (player.isHit > 0) player.isHit--;
+
+            // Interaksi Item
+            items.forEach(item => {
+                if (!item.collected && checkRectCollision(player, { x: item.x, y: item.y, width: 14, height: 14 })) {
+                    item.collected = true;
+
+                    if (item.type === 'TTD') {
+                        ttdCollected++;
+                        score += 150;
+                        player.hp = Math.min(100, player.hp + 15);
+                        playSound('coin');
+                        addParticles(item.x, item.y, '#ef4444', 10);
+                    } else if (item.type === 'MEAT') {
+                        score += 50;
+                        player.hp = Math.min(100, player.hp + 10);
+                        playSound('item');
+                        addParticles(item.x, item.y, '#10b981', 8);
+                    } else if (item.type === 'TEA') {
+                        // Teh Pekat menghambat penyerapan zat besi!
+                        player.hp = Math.max(10, player.hp - 15);
+                        playSound('hit');
+                        addParticles(item.x, item.y, '#854d0e', 8);
+                    }
+
+                    updateHUD();
+
+                    // Cek Kemenangan
+                    if (ttdCollected >= TOTAL_TTD_GOAL && player.x > LEVEL_WIDTH - 200) {
+                        gameWin();
+                    }
+                }
+            });
+
+            // Update & Interaksi Musuh
+            enemies.forEach(enemy => {
+                enemy.x += enemy.vx;
+                if (enemy.x <= enemy.minX || enemy.x >= enemy.maxX) {
+                    enemy.vx *= -1;
+                }
+
+                // Cek Tabrakan dengan Mario
+                if (player.isHit <= 0 && checkRectCollision(player, enemy)) {
+                    // Jika Mario melompat di atas musuh (Injak)
+                    if (player.vy > 0 && player.y + player.height - player.vy <= enemy.y + 4) {
+                        enemy.x = -999; // Hancurkan musuh
+                        player.vy = -5.0; // Bouncing
+                        score += 100;
+                        playSound('hit');
+                        addParticles(enemy.x, enemy.y, '#cbd5e1', 8);
+                    } else {
+                        // Mario Terkena Serangan
+                        player.hp -= 18;
+                        player.isHit = 30; // Frame kebal sementara
+                        player.vy = -3;
+                        playSound('hit');
+                        addParticles(player.x, player.y, '#ef4444', 8);
+                        updateHUD();
+
+                        if (player.hp <= 0) {
+                            gameOver("Mario mengalami Anemia Berat! Tubuh terasa sangat lemas!");
+                        }
+                    }
+                }
+            });
+
+            // Update Partikel
+            for (let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.life -= 0.04;
+                if (p.life <= 0) particles.splice(i, 1);
+            }
+        }
+
+        function checkRectCollision(r1, r2) {
+            return (
+                r1.x < r2.x + (r2.width || r2.w || 14) &&
+                r1.x + r1.width > r2.x &&
+                r1.y < r2.y + (r2.height || r2.h || 14) &&
+                r1.y + r1.height > r2.y
+            );
+        }
+
+        function gameOver(msg) {
+            gameState = 'GAMEOVER';
+            uiTitle.innerHTML = 'GAME OVER<br><span class="text-red-500">TERKENA ANEMIA!</span>';
+            uiDesc.textContent = msg || 'Tingkatkan konsumsi Tablet Tambah Darah & makanan kaya Zat Besi!';
+            startBtn.textContent = 'COBA LAGI';
+            uiOverlay.classList.remove('hidden');
+        }
+
+        function gameWin() {
+            gameState = 'VICTORY';
+            score += 500;
+            updateHUD();
+            uiTitle.innerHTML = 'VICTORY!<br><span class="text-emerald-400">BEBAS ANEMIA!</span>';
+            uiDesc.textContent = `Selamat! Mario berhasil mengumpulkan 5 Tablet Tambah Darah dan menjaga kadar Hb tetap optimal! Skor Akhir: ${score}`;
+            startBtn.textContent = 'MAIN LAGI';
+            uiOverlay.classList.remove('hidden');
+        }
+
+        // Render Graphics Engine
+        function render() {
+            ctx.clearRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+
+            ctx.save();
+            ctx.translate(-cameraX, 0);
+
+            // 1. Latar Belakang (Awan & Gunung Piksel)
+            ctx.fillStyle = '#38bdf8'; // Langit Biru
+            ctx.fillRect(cameraX, 0, GAME_WIDTH, GAME_HEIGHT);
+
+            // Awan Melayang
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(100, 40, 40, 16);
+            ctx.fillRect(350, 60, 50, 18);
+            ctx.fillRect(700, 35, 60, 20);
+            ctx.fillRect(1100, 50, 45, 16);
+            ctx.fillRect(1500, 40, 55, 18);
+
+            // 2. Render Platform / Tanah
+            platforms.forEach(p => {
+                // Rumput Atas
+                ctx.fillStyle = '#22c55e';
+                ctx.fillRect(p.x, p.y, p.w, 4);
+
+                // Tanah Cokelat
+                ctx.fillStyle = '#854d0e';
+                ctx.fillRect(p.x, p.y + 4, p.w, p.h - 4);
+            });
+
+            // 3. Render Blok Kuis (?)
+            quizBlocks.forEach(b => {
+                ctx.fillStyle = b.hit ? '#94a3b8' : '#eab308';
+                ctx.fillRect(b.x, b.y, b.w, b.h);
+                ctx.strokeStyle = '#000';
+                ctx.strokeRect(b.x, b.y, b.w, b.h);
+
+                if (!b.hit) {
+                    ctx.fillStyle = '#000';
+                    ctx.font = '10px "Press Start 2P"';
+                    ctx.fillText('?', b.x + 4, b.y + 12);
+                }
+            });
+
+            // 4. Render Item Nutrisi
+            items.forEach(item => {
+                if (item.collected) return;
+
+                if (item.type === 'TTD') {
+                    // Pill TTD Merah
+                    ctx.fillStyle = '#ef4444';
+                    ctx.fillRect(item.x + 2, item.y + 4, 10, 6);
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(item.x + 4, item.y + 5, 6, 4);
+                } else if (item.type === 'MEAT') {
+                    // Daging Kaya Zat Besi
+                    ctx.fillStyle = '#b91c1c';
+                    ctx.fillRect(item.x + 2, item.y + 3, 10, 8);
+                } else if (item.type === 'TEA') {
+                    // Cangkir Teh (Debuff)
+                    ctx.fillStyle = '#78350f';
+                    ctx.fillRect(item.x + 3, item.y + 4, 8, 8);
+                }
+            });
+
+            // 5. Render Musuh (Gejala / Mitos)
+            enemies.forEach(e => {
+                ctx.fillStyle = '#a855f7';
+                ctx.fillRect(e.x, e.y, e.w, e.h);
+
+                // Mata Musuh
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(e.x + 2, e.y + 3, 3, 3);
+                ctx.fillRect(e.x + 9, e.y + 3, 3, 3);
+
+                // Label Musuh
+                ctx.fillStyle = '#fca5a5';
+                ctx.font = '6px "Press Start 2P"';
+                ctx.fillText(e.label, e.x - 4, e.y - 4);
+            });
+
+            // 6. Bendera Garis Finish
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(LEVEL_WIDTH - 150, 110, 4, 120);
+            ctx.fillStyle = '#10b981';
+            ctx.fillRect(LEVEL_WIDTH - 146, 110, 24, 16);
+
+            // 7. Render Player (Super Mario)
+            if (!(player.isHit > 0 && Math.floor(Date.now() / 60) % 2 === 0)) {
+                ctx.save();
+                ctx.translate(player.x, player.y);
+
+                // Topi & Baju Merah Mario
+                ctx.fillStyle = '#ef4444';
+                ctx.fillRect(2, 0, 12, 5); // Topi
+                ctx.fillRect(3, 7, 10, 7); // Baju
+
+                // Muka & Kulit
+                ctx.fillStyle = '#fde047';
+                ctx.fillRect(4, 3, 9, 4);
+
+                // Celana Katel / Overalls Biru
+                ctx.fillStyle = '#2563eb';
+                ctx.fillRect(3, 12, 10, 7);
+
+                // Sepatu Cokelat
+                ctx.fillStyle = '#78350f';
+                ctx.fillRect(player.facingRight ? 8 : 1, 18, 7, 4);
+
+                ctx.restore();
+            }
+
+            // 8. Partikel Effect
+            particles.forEach(p => {
+                ctx.fillStyle = p.color;
+                ctx.globalAlpha = p.life;
+                ctx.fillRect(p.x, p.y, p.size, p.size);
+            });
+            ctx.globalAlpha = 1.0;
+
+            ctx.restore();
+        }
+
+        // Main Loop
+        function gameLoop() {
+            update();
+            render();
+            requestAnimationFrame(gameLoop);
+        }
+
+        window.onload = () => {
+            initLevel();
+            requestAnimationFrame(gameLoop);
+        };
+    </script>
+</body>
+</html>
